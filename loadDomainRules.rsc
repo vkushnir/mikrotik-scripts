@@ -5,8 +5,8 @@
 :global domainRules
 
 # --- CONFIG ---
-:local dirPath "geosite/"
-:local fileList [:toarray "x,groq"]
+:local dirPath "geosite/"; # folder with rules
+:local fileList [:toarray "x,youtube"]; # list rule files to load
 
 # initialize
 :set domainRules [:toarray ""]
@@ -22,17 +22,16 @@
 
     :local f [/file find where name=$filePath]
     :if ([:len $f] = 0) do={
-        :log error ("File not found: " . $filePath);
-        :return $filePath;
+        :log error ("File not found: " . $filePath)
+        :return $filePath
     }
 
-    :log info "Read $filePath ...";
+    :log info "Read $filePath ..."
     :local content [/file get $filePath contents]
 
     :foreach line in=[ :deserialize [:tolf $content] from=dsv delimiter="\n" options=dsv.plain ] do={
-        :set line [:tostr $line];
-        :if ([:len $line] > 0 && [:pick $line 0 1] != "#") do={
-
+        :set line [:tostr $line]
+        :if ([:len $line] > 1 && [:pick $line 0 1] != "#") do={
             # split rule line
             :local rule
             :local value
@@ -46,41 +45,43 @@
 
             # handle include
             :if ($rule = "include") do={
-                #:set incFile [:trim $incFile];
-                :log debug "Import file: $value ...";
-                $processFile $value $dirPath $processFile;
-                :set $rule "continue";
+                :log debug "Import file: $value ..."
+                $processFile $value $dirPath $processFile
+                :set $rule "continue"
             }
 
             # add rule to array
             :if ([:find {"domain";"keyword";"regexp";"full"} $rule] >= 0) do={
-                :local cleanVal $value;
+                # remove attributes
+                :if ([:find $value " "] > 1) do={
+                    :set value [:pick $value 0 [:find $value " "]]
+                }
 
                 # store rule
                 :local existing ($domainRules->$fileName)
                 :if ([:typeof ($domainRules->$fileName)] = "nothing") do={
                     :log debug "set new '$fileName', $rule=$value"
-                    :set ($domainRules->$fileName) ($rule . "=" . $cleanVal);
+                    :set ($domainRules->$fileName) ($rule . "=" . $value)
                 } else={
                     :log debug "update '$fileName', add $rule=$value"
-                    :set ($domainRules->$fileName) ($existing , ($rule . "=" . $cleanVal));
+                    :set ($domainRules->$fileName) ($existing , ($rule . "=" . $value))
                 }
                 :set rule "set";
             }
 
             # check for unknown rule
             :if ([:find {"continue";"set"} $rule] < 0) do={
-                :log warning "unknown rule: $line";
+                :log warning "unknown rule: $line"
             }
         }
 
     }
 }
 
-# --- MAIN ---cd /
+# --- MAIN ---
 :foreach fileName in=$fileList do={
-    $processFile $fileName $dirPath $processFile;
+    $processFile $fileName $dirPath $processFile
 }
 
-:log debug ("Loaded domain rules from: $dirPath")
-:log debug ("Files loaded: " . [:len $domainRules])
+:log info ("Loaded domain rules from: $dirPath")
+:log info ("Files loaded: " . [:len $domainRules])
