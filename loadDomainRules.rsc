@@ -38,7 +38,7 @@
             :local value
             if ([:find $line ":"] > 1) do={
                 :set rule [:pick $line 0 [:find $line ":"]];
-                :set value [:pick $line ([:find $line ":"]+1) 999];
+                :set value [:pick $line ([:find $line ":"]+1) [:len $line]];
             } else={
                 :set rule "domain";
                 :set value $line;
