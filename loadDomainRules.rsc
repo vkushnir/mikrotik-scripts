@@ -6,12 +6,14 @@
 
 # --- CONFIG ---
 :local dirPath "geosite/"; # folder with rules
-:local fileList [:toarray "x,youtube"]; # list rule files to load
+:local fileList [:toarray "anthropic,groq,openai,xai,meta,mistral,google-deepmind,google-gemini,youtube"]; # list rule files to load
 
 # initialize
 :set domainRules [:toarray ""]
 
 # --- function: escape "." character ---
+# Named arguments:
+# * str - string or escaping 
 :local escapeDot do={
     :local result ""
 
@@ -27,6 +29,11 @@
 }
 
 # --- function: process file (recursive) ---
+# Named arguments:
+# * fileName - Name file inside $dirPath 
+# * dirPath – Folder with wiles
+# * processFile - self for recursion
+# * escape – function for escaping dots
 :local processFile do={
     :global domainRules
     :local filePath ($dirPath . $fileName)
