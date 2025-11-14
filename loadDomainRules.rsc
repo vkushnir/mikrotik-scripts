@@ -11,12 +11,23 @@
 # initialize
 :set domainRules [:toarray ""]
 
+# --- function: escape "." character ---
+:local escapeDot do={
+    :local result ""
+
+    :for i from=0 to=([:len $str] - 1) do={
+        :local ch [:pick $str $i ($i + 1)]
+        :if ($ch = ".") do={
+            :set result ($result . "\\.")
+        } else={
+            :set result ($result . $ch)
+        }
+    }
+    :return $result
+}
+
 # --- function: process file (recursive) ---
 :local processFile do={
-    :local fileName $1
-    :local dirPath $2
-    :local processFile $3
-
     :global domainRules
     :local filePath ($dirPath . $fileName)
 
@@ -29,7 +40,7 @@
     :log info "Read $filePath ..."
     :local content [/file get $filePath contents]
 
-    :foreach line in=[ :deserialize [:tolf $content] from=dsv delimiter="\n" options=dsv.plain ] do={
+    :foreach line in=[:deserialize [:tolf $content] from=dsv delimiter="\n" options=dsv.plain] do={
         :set line [:tostr $line]
         :if ([:len $line] > 1 && [:pick $line 0 1] != "#") do={
             # split rule line
@@ -57,14 +68,26 @@
                     :set value [:pick $value 0 [:find $value " "]]
                 }
 
+                # generate rule match
+                :local match $value
+                if ([:find {"domain";"keyword";"regexp"} $rule] >= 0) do={
+                    :set match [$escape str=$value] 
+                }
+                if ($rule = "domain") do={
+                    :set match ($match . "\$")
+                }
+                if ($rule = "keyword") do={
+                    :set match (".*" . $match . ".*")
+                }
+
                 # store rule
                 :local existing ($domainRules->$fileName)
                 :if ([:typeof ($domainRules->$fileName)] = "nothing") do={
-                    :log debug "set new '$fileName', $rule=$value"
-                    :set ($domainRules->$fileName) ($rule . "=" . $value)
+                    :log debug "set new '$fileName', $rule=$value, match=$match"
+                    :set ($domainRules->$fileName) ($rule . "=" . $value . "::" . $match)
                 } else={
-                    :log debug "update '$fileName', add $rule=$value"
-                    :set ($domainRules->$fileName) ($existing , ($rule . "=" . $value))
+                    :log debug "update '$fileName', add $rule=$value, match=$match"
+                    :set ($domainRules->$fileName) ($existing , ($rule . "=" . $value . "::" . $match))
                 }
                 :set rule "set";
             }
@@ -80,7 +103,7 @@
 
 # --- MAIN ---
 :foreach fileName in=$fileList do={
-    $processFile $fileName $dirPath $processFile
+    $processFile fileName=$fileName dirPath=$dirPath processFile=$processFile escape=$escapeDot
 }
 
 :log info ("Loaded domain rules from: $dirPath")
