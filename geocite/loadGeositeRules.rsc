@@ -1,22 +1,21 @@
-# Script: loadDomainRules
+# Script: loadGeositeRules
 # RouterOS: 7.20+
-# Description: Parse domain rule files and store them into global variable "domainRules"
+# Description: Parse domain list files and store them into global variable "geositeRules"
 
-:global domainRules
+:global geositeRules
 
 # --- CONFIG ---
-:local dirPath "geosite/"; # folder with rules
-:local fileList [:toarray "anthropic,groq,openai,xai,meta,mistral,google-deepmind,google-gemini,youtube"]; # list rule files to load
+:global geositePath;  # "geosite/"
+:global geositeFiles; # {"anthropic";"groq";"openai";google-gemini"]
+# https://github.com/v2ray/domain-list-community/tree/master/data
 
 # initialize
-:set domainRules [:toarray ""]
+:set geositeRules [:toarray ""]
 
 # --- function: escape "." character ---
-# Named arguments:
-# * str - string or escaping 
 :local escapeDot do={
+    :local str $1
     :local result ""
-
     :for i from=0 to=([:len $str] - 1) do={
         :local ch [:pick $str $i ($i + 1)]
         :if ($ch = ".") do={
@@ -30,21 +29,20 @@
 
 # --- function: process file (recursive) ---
 # Named arguments:
-# * fileName - Name file inside $dirPath 
-# * dirPath – Folder with wiles
+# * fileName - Name file inside $geositePath 
 # * processFile - self for recursion
 # * escape – function for escaping dots
 :local processFile do={
-    :global domainRules
-    :local filePath ($dirPath . $fileName)
-
+    :global geositeRules
+    :global geositePath
+    :local filePath ($geositePath . $fileName)
     :local f [/file find where name=$filePath]
     :if ([:len $f] = 0) do={
-        :log error ("File not found: " . $filePath)
+        :log error "[Load Domains] File not found: $filePath"
         :return $filePath
     }
 
-    :log info "Read $filePath ..."
+    :log info "[Load Domains] Read $filePath ..."
     :local content [/file get $filePath contents]
 
     :foreach line in=[:deserialize [:tolf $content] from=dsv delimiter="\n" options=dsv.plain] do={
@@ -63,8 +61,8 @@
 
             # handle include
             :if ($rule = "include") do={
-                :log debug "Import file: $value ..."
-                $processFile $value $dirPath $processFile
+                :log debug "[Load Domains] Import file: $value ..."
+                $processFile fileName=$value processFile=$processFile escape=$escape
                 :set $rule "continue"
             }
 
@@ -78,30 +76,30 @@
                 # generate rule match
                 :local match $value
                 if ([:find {"domain";"keyword";"regexp"} $rule] >= 0) do={
-                    :set match [$escape str=$value] 
+                    :set match [$escape $value] 
                 }
                 if ($rule = "domain") do={
-                    :set match ($match . "\$")
+                    :set match "$match\$"
                 }
                 if ($rule = "keyword") do={
-                    :set match (".*" . $match . ".*")
+                    :set match ".*$match.*"
                 }
 
                 # store rule
-                :local existing ($domainRules->$fileName)
-                :if ([:typeof ($domainRules->$fileName)] = "nothing") do={
-                    :log debug "set new '$fileName', $rule=$value, match=$match"
-                    :set ($domainRules->$fileName) ($rule . "=" . $value . "::" . $match)
+                :local existing ($geositeRules->$fileName)
+                :if ([:typeof ($geositeRules->$fileName)] = "nothing") do={
+                    :log debug "[Load Domains] set new '$fileName', $rule=$value, match=$match"
+                    :set ($geositeRules->$fileName) ($rule . "=" . $value . "::" . $match)
                 } else={
-                    :log debug "update '$fileName', add $rule=$value, match=$match"
-                    :set ($domainRules->$fileName) ($existing , ($rule . "=" . $value . "::" . $match))
+                    :log debug "[Load Domains] update '$fileName', add $rule=$value, match=$match"
+                    :set ($geositeRules->$fileName) ($existing , ($rule . "=" . $value . "::" . $match))
                 }
                 :set rule "set";
             }
 
             # check for unknown rule
             :if ([:find {"continue";"set"} $rule] < 0) do={
-                :log warning "unknown rule: $line"
+                :log warning "[Load Domains] unknown rule: $line"
             }
         }
 
@@ -109,9 +107,9 @@
 }
 
 # --- MAIN ---
-:foreach fileName in=$fileList do={
-    $processFile fileName=$fileName dirPath=$dirPath processFile=$processFile escape=$escapeDot
+:foreach fileName in=$geositeFiles do={
+    $processFile fileName=$fileName processFile=$processFile escape=$escapeDot
 }
 
-:log info ("Loaded domain rules from: $dirPath")
-:log info ("Files loaded: " . [:len $domainRules])
+:log info "[Load Domains] Loaded domain rules from: $geositePath"
+:log info "[Load Domains] Files loaded: $[:len $geositeRules]"

@@ -2,12 +2,12 @@
 # RouterOS: 7.20+
 # Description: Scan DNS cache and add matching IPs to Access List with auto-renewal
 
-:global domainRules
+:global geositeRules
 
 # --- CONFIG ---
-:local accessListName "vpnDomains"
-:local leaseTime "7d"
-:local renewThresholdTime "2d"
+:global accessListName "vpnDomains"
+:global leaseTime "7d"
+:global renewThresholdTime "2d"
 
 # --- function: update acl ---
 #
@@ -19,7 +19,7 @@
 # * renew – access list entry timeout renew threshold
 
 :local aclUpdate do={
-    :log debug "Proceed $comment ($[:len $matches])"
+    :log debug "[DNS ACL] Proceed $comment ($[:len $matches])"
 
     :foreach dns in=$matches do={
 
@@ -42,7 +42,7 @@
 }
 
 # --- MAIN ---
-:foreach fileName,rules in=$domainRules do={
+:foreach fileName,rules in=$geositeRules do={
     :foreach k,v in=$rules do={
         :local rule [:pick $v 0 [:find $v "="]]
         :local value [:pick $v ([:find $v "="]+1) [:find $v "::"]]
