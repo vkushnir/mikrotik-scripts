@@ -21,27 +21,34 @@
 
 # --- function: update acl ---
 :local aclUpdate do={
+    :log error "Add to ACL $fileName, $rule=$value ($[:len $dnsMatches])"
+    :foreach d in=$dnsMatches do={
+        :local addr [/ip dns cache get $d address]
+        :log debug "$addr:$value"
+    }
 }
 
 # --- MAIN ---
 :foreach fileName,rules in=$domainRules do={
     :foreach k,v in=$rules do={
-    	:local rule [:pick $v 0 [:find $v "="]]
-    	:local value [:pick $v ([:find $v "="]+1) [:find $v "::"]]
-    	:local match [:pick $v ([:find $v "::"]+2) [:len $v]]
-    	:local comment "geocite::$fileName::$rule::$value"
+        :local rule [:pick $v 0 [:find $v "="]]
+        :local value [:pick $v ([:find $v "="]+1) [:find $v "::"]]
+        :local match [:pick $v ([:find $v "::"]+2) [:len $v]]
+        :local comment "geocite::$fileName::$rule::$value"
 
-    	:if ([:find {"domain";"keyword";"regexp"} $rule] >= 0) do={
-    		:local dnsMatches [/ip dns cache all find where (name~$match) && ((type="A") || (type="AAAA"))]
-    		:if ([:len $dnsMatches] > 0) do={
-    			:log debug "Add to ACL $fileName, $rule=$value ($[:len $dnsMatches])"
-    		}
-    	}
-    	:if ($rule = "full") do={
-    		:local dnsMatches [/ip dns cache all find where (name=$match) && ((type="A") || (type="AAAA"))]
-    		:if ([:len $dnsMatches] > 0) do={
-    			:log debug "Add to ACL $fileName, $rule=$value ($[:len $dnsMatches])"
-    		}
-    	}
+        :if ([:find {"domain";"keyword";"regexp"} $rule] >= 0) do={
+            :local dnsMatches [/ip dns cache all find where (name~$match) && ((type="A") || (type="AAAA"))]
+            :if ([:len $dnsMatches] > 0) do={
+                :log debug "Add to ACL $fileName, $rule=$value ($[:len $dnsMatches])"
+                $aclUpdate dnsMatches=$dnsMatches comment=$comment fileName=$fileName rule=$rule value=$value
+            }
+        }
+        :if ($rule = "full") do={
+            :local dnsMatches [/ip dns cache all find where (name=$match) && ((type="A") || (type="AAAA"))]
+            :if ([:len $dnsMatches] > 0) do={
+                :log debug "Add to ACL $fileName, $rule=$value ($[:len $dnsMatches])"
+                $aclUpdate matches=$dnsMatches comment=$comment name=$fileName rule=$rule value=$value
+            }
+        }
     }
 }
