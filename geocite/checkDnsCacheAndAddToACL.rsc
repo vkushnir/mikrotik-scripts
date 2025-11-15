@@ -5,26 +5,39 @@
 :global domainRules
 
 # --- CONFIG ---
-:local accessListName "dnsDomains"
+:local accessListName "vpnDomains"
 :local leaseTime "7d"
-:local renewThresholdSec 86400
-
-# --- helper: convert timeout string to seconds ---
-:local toSeconds do={
-    :local t $1
-    :local s 0
-    :if ([:find $t "d"] != nil) do={ :set s ($s + [:tonum [:pick $t 0 [:find $t "d"]]] * 86400) }
-    :if ([:find $t "h"] != nil) do={ :set s ($s + [:tonum [:pick $t 0 [:find $t "h"]]] * 3600) }
-    :if ([:find $t "m"] != nil) do={ :set s ($s + [:tonum [:pick $t 0 [:find $t "m"]]] * 60) }
-    :return $s
-}
+:local renewThresholdTime "2d"
 
 # --- function: update acl ---
+#
+# Named arguments:
+# * comment - comment for ip address
+# * matches – array with dns cache entries
+# * acl – access list name
+# * lease – access list entry timeout
+# * renew – access list entry timeout renew threshold
+
 :local aclUpdate do={
-    :log error "Add to ACL $fileName, $rule=$value ($[:len $dnsMatches])"
-    :foreach d in=$dnsMatches do={
-        :local addr [/ip dns cache get $d address]
-        :log debug "$addr:$value"
+    :log debug "Proceed $comment ($[:len $matches])"
+
+    :foreach dns in=$matches do={
+
+        :local addr [/ip/dns/cache get $dns data]
+        :local existing [/ip/firewall/address-list find where list=$acl and address=$addr and comment=$comment]
+
+        :if ([:len $existing] > 0) do={
+            :local currentTimeout [/ip/firewall/address-list get $existing timeout]
+            :if ($currentTimeout != "") do={
+                :if ($currentTimeout < [:totime $renew]) do={
+                    :log debug "[DNS ACL] Refresh timeout for $addr ($comment)"
+                    /ip/firewall/address-list set $existing timeout=[:totime $lease]
+                }
+            }
+        } else={
+            :log info "[DNS ACL] Add $addr to $acl ($comment)"
+            /ip/firewall/address-list add list=$acl address=$addr comment=$comment timeout=[:totime $lease]
+        }
     }
 }
 
@@ -35,19 +48,18 @@
         :local value [:pick $v ([:find $v "="]+1) [:find $v "::"]]
         :local match [:pick $v ([:find $v "::"]+2) [:len $v]]
         :local comment "geocite::$fileName::$rule::$value"
+        :local dnsMatches
 
         :if ([:find {"domain";"keyword";"regexp"} $rule] >= 0) do={
-            :local dnsMatches [/ip dns cache all find where (name~$match) && ((type="A") || (type="AAAA"))]
+            :set dnsMatches [/ip/dns/cache all find where (name~$match) && ((type="A") || (type="AAAA"))]
             :if ([:len $dnsMatches] > 0) do={
-                :log debug "Add to ACL $fileName, $rule=$value ($[:len $dnsMatches])"
-                $aclUpdate dnsMatches=$dnsMatches comment=$comment fileName=$fileName rule=$rule value=$value
+                $aclUpdate matches=$dnsMatches comment=$comment acl=$accessListName lease=$leaseTime renew=$renewThresholdTime
             }
         }
         :if ($rule = "full") do={
-            :local dnsMatches [/ip dns cache all find where (name=$match) && ((type="A") || (type="AAAA"))]
+            :set dnsMatches [/ip/dns/cache all find where (name=$match) && ((type="A") || (type="AAAA"))]
             :if ([:len $dnsMatches] > 0) do={
-                :log debug "Add to ACL $fileName, $rule=$value ($[:len $dnsMatches])"
-                $aclUpdate matches=$dnsMatches comment=$comment name=$fileName rule=$rule value=$value
+                $aclUpdate matches=$dnsMatches comment=$comment acl=$accessListName lease=$leaseTime renew=$renewThresholdTime
             }
         }
     }
