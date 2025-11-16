@@ -7,9 +7,9 @@
 # --- CONFIG ---
 :global accessListName "vpnDomains"
 :global leaseTime "7d"
-:global renewThresholdTime "2d"
+:global renewThresholdTime "3d"
 
-# --- function: update acl ---
+# --- function: update v4 acl ---
 #
 # Named arguments:
 # * comment - comment for ip address
@@ -24,19 +24,36 @@
     :foreach dns in=$matches do={
 
         :local addr [/ip/dns/cache get $dns data]
-        :local existing [/ip/firewall/address-list find where list=$acl and address=$addr and comment=$comment]
+        :local atype [/ip/dns/cache get $dns type]
 
-        :if ([:len $existing] > 0) do={
-            :local currentTimeout [/ip/firewall/address-list get $existing timeout]
-            :if ($currentTimeout != "") do={
-                :if ($currentTimeout < [:totime $renew]) do={
-                    :log debug "[DNS ACL] Refresh timeout for $addr ($comment)"
-                    /ip/firewall/address-list set $existing timeout=[:totime $lease]
+        :if ($atype = "A") do={
+            :local existing [/ip/firewall/address-list find where list=$acl and address=$addr]; # and comment=$comment]
+            :if ([:len $existing] > 0) do={
+                :local currentTimeout [/ip/firewall/address-list get $existing timeout]
+                :if ($currentTimeout != "") do={
+                    :if ($currentTimeout < [:totime $renew]) do={
+                        :log debug "[DNS ACL] Refresh timeout for $addr ($comment)"
+                        /ip/firewall/address-list set $existing timeout=[:totime $lease]
+                    }
                 }
+            } else={
+                :log info "[DNS ACL] Add $addr to $acl ($comment)"
+                /ip/firewall/address-list add list=$acl address=$addr comment=$comment timeout=[:totime $lease]
             }
-        } else={
-            :log info "[DNS ACL] Add $addr to $acl ($comment)"
-            /ip/firewall/address-list add list=$acl address=$addr comment=$comment timeout=[:totime $lease]
+        } else {
+            :local existing [/ipv6/firewall/address-list find where list=$acl and address=$addr]; # and comment=$comment]
+            :if ([:len $existing] > 0) do={
+                :local currentTimeout [/ipv6/firewall/address-list get $existing timeout]
+                :if ($currentTimeout != "") do={
+                    :if ($currentTimeout < [:totime $renew]) do={
+                        :log debug "[DNS ACL] Refresh timeout for $addr ($comment)"
+                        /ipv6/firewall/address-list set $existing timeout=[:totime $lease]
+                    }
+                }
+            } else={
+                :log info "[DNS ACL] Add $addr to $acl ($comment)"
+                /ipv6/firewall/address-list add list=$acl address=$addr comment=$comment timeout=[:totime $lease]
+            }        
         }
     }
 }
@@ -51,13 +68,13 @@
         :local dnsMatches
 
         :if ([:find {"domain";"keyword";"regexp"} $rule] >= 0) do={
-            :set dnsMatches [/ip/dns/cache all find where (name~$match) && ((type="A") || (type="AAAA"))]
+            :set dnsMatches [/ip/dns/cache all find where name~$match and (type="A" or type="AAAA")]
             :if ([:len $dnsMatches] > 0) do={
                 $aclUpdate matches=$dnsMatches comment=$comment acl=$accessListName lease=$leaseTime renew=$renewThresholdTime
             }
         }
         :if ($rule = "full") do={
-            :set dnsMatches [/ip/dns/cache all find where (name=$match) && ((type="A") || (type="AAAA"))]
+            :set dnsMatches [/ip/dns/cache all find where name=$match and (type="A" or type="AAAA")]
             :if ([:len $dnsMatches] > 0) do={
                 $aclUpdate matches=$dnsMatches comment=$comment acl=$accessListName lease=$leaseTime renew=$renewThresholdTime
             }
