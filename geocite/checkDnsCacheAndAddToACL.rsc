@@ -25,6 +25,11 @@
 
         :local addr [/ip/dns/cache get $dns data]
         :local atype [/ip/dns/cache get $dns type]
+        :if ($atype="A") do={
+            :set addr [:toip [/ip/dns/cache get $dns data]]
+        } else {
+            :set addr [:toip6 [/ip/dns/cache get $dns data]]
+        }
 
         :if ($atype = "A") do={
             :local existing [/ip/firewall/address-list find where list=$acl and address=$addr]; # and comment=$comment]
@@ -32,27 +37,36 @@
                 :local currentTimeout [/ip/firewall/address-list get $existing timeout]
                 :if ($currentTimeout != "") do={
                     :if ($currentTimeout < [:totime $renew]) do={
-                        :log debug "[DNS ACL] Refresh timeout for $addr ($comment)"
+                        :log debug "[DNS ACL] Refresh timeout for IPv4:$addr ($comment)"
                         /ip/firewall/address-list set $existing timeout=[:totime $lease]
                     }
                 }
             } else={
-                :log info "[DNS ACL] Add $addr to $acl ($comment)"
-                /ip/firewall/address-list add list=$acl address=$addr comment=$comment timeout=[:totime $lease]
+                :log info "[DNS ACL] Add IPv4:$addr to $acl ($comment)"
+                :onerror e in={
+                    /ip/firewall/address-list add list=$acl address=$addr comment=$comment timeout=[:totime $lease]
+                } do={
+                    :log error "Can't add IPv4:$addr to $acl: $e"
+                }
             }
         } else {
             :local existing [/ipv6/firewall/address-list find where list=$acl and address=$addr]; # and comment=$comment]
+            # TODO: Mikrotik didn't search in IPv6 address-list. Find solution.
             :if ([:len $existing] > 0) do={
                 :local currentTimeout [/ipv6/firewall/address-list get $existing timeout]
                 :if ($currentTimeout != "") do={
                     :if ($currentTimeout < [:totime $renew]) do={
-                        :log debug "[DNS ACL] Refresh timeout for $addr ($comment)"
+                        :log debug "[DNS ACL] Refresh timeout for IPv6:$addr ($comment)"
                         /ipv6/firewall/address-list set $existing timeout=[:totime $lease]
                     }
                 }
             } else={
-                :log info "[DNS ACL] Add $addr to $acl ($comment)"
-                /ipv6/firewall/address-list add list=$acl address=$addr comment=$comment timeout=[:totime $lease]
+                :log info "[DNS ACL] Add IPv6:$addr to $acl ($comment)"
+                :onerror e in={
+                    /ipv6/firewall/address-list add list=$acl address=$addr comment=$comment timeout=[:totime $lease]
+                } do={
+                    :log error "Can't add IPv6:$addr to $acl: $e"
+                }
             }        
         }
     }
