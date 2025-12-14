@@ -27,12 +27,20 @@ if ([:len $hostname] <= 0) do={
 }
 :if ($leaseBound=1) do={
   if ([:len $hostname] > 0) do={
-    :log info ("DHCP Bound: $leaseActIP [$leaseActMAC] (" . $hostname . ")")
-    ip/dns/static/add address=$leaseActIP name=($hostname . ".home.arpa") type=A ttl=$ttl comment=("DHCP Server:$leaseServerName, MAC: $leaseActMAC, Client: " . $hostname)
+    :log info "DHCP Bound: $leaseActIP [$leaseActMAC] $hostname)"
+    :onerror e in={
+      /ip/dns/static/add address=$leaseActIP name="$hostname.home.arpa" type=A ttl=$ttl comment="DHCP Server:$leaseServerName, MAC: $leaseActMAC, Client: $hostname"
+    } do={
+      :log error "DHCP UnBound fail: $leaseActIP [$leaseActMAC] ($hostname)"
+    }
   } else {
-    :log debug ("DHCP Bound: $leaseActIP [$leaseActMAC] (unknown)")
+    :log debug "DHCP Bound fail: $leaseActIP [$leaseActMAC] (unknown)"
   }
 } else {
-  :log info ("DHCP UnBound: $leaseActIP [$leaseActMAC] (" . $hostname . ")")
-  /ip/dns/static/remove [find address=$leaseActIP]
+  :onerror e in={
+    :log debug "DHCP UnBound: $leaseActIP [$leaseActMAC] ($hostname)"
+    /ip/dns/static/remove [find address=$leaseActIP]
+  } do={
+    :log error "DHCP UnBound fail: $leaseActIP [$leaseActMAC] ($hostname)"
+  }
 }
