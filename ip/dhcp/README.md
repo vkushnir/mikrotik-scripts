@@ -59,7 +59,7 @@ flowchart TD
 
 Add a DHCP server and attach the DNS update script using the lease-script property.
 
-![dhcp-server-script.png](../../src/images/dhcp-server-script.png)dhcp-server-script.png)
+![dhcp-server-script.png](../../src/images/ip-dhcp-server-script.png)dhcp-server-script.png)
 
 ---
 
