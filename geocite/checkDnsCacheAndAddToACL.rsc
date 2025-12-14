@@ -5,9 +5,9 @@
 :global geositeRules
 
 # --- CONFIG ---
-:global accessListName "vpnDomains"
-:global leaseTime "7d"
-:global renewThresholdTime "3d"
+:global accessListName
+:global leaseTime
+:global renewThresholdTime
 
 # --- function: update v4 acl ---
 #
