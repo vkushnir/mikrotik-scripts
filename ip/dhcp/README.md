@@ -53,104 +53,17 @@ flowchart TD
 
 ---
 
-## Main Script
+## Usage
 
-This script performs the DNS update logic.
-
-```mikrotik
-# Add static DNS record when DHCP addres leased
-
-# --- CONFIG ---
-:global hosts; # array {"mac"="hostname";"mac"="hostname"}
-:local ttl "1h"
-
-
-# --- function: replace " " character ---
-:local replace do={
-    :local result ""
-
-    :for i from=0 to=([:len $value] - 1) do={
-        :local ch [:pick $value $i ($i + 1)]
-        :if ($ch = " ") do={
-            :set result ($result . "_")
-        } else={
-            :set result ($result . $ch)
-        }
-    }
-    :return $result
-}
-
-# --- MAIN ---
-:local hostname ($hosts->"$leaseActMAC")
-if ([:len $hostname] <= 0) do={
-  :set hostname [$replace value=$"lease-hostname"]
-}
-:if ($leaseBound=1) do={
-  if ([:len $hostname] > 0) do={
-    :log info ("DHCP Bound: $leaseActIP [$leaseActMAC] (" . $hostname . ")")
-    ip/dns/static/add address=$leaseActIP name=($hostname . ".home.arpa") type=A ttl=$ttl comment=("DHCP Server:$leaseServerName, MAC: $leaseActMAC, Client: " . $hostname)
-  } else {
-    :log debug ("DHCP Bound: $leaseActIP [$leaseActMAC] (unknown)")
-  }
-} else {
-  :log info ("DHCP UnBound: $leaseActIP [$leaseActMAC] (" . $hostname . ")")
-  /ip/dns/static/remove [find address=$leaseActIP]
-}
-```
-
----
-
-## DHCP Server Configuration
+### DHCP Server Configuration
 
 Add a DHCP server and attach the DNS update script using the lease-script property.
 
-```mikrotik
-/ip dhcp-server
-add add-arp=yes address-pool=dhcp bootp-support=none interface=bridge-lan lease-script="\
-      # Add static DNS record when DHCP addres leased\
-    \n\
-    \n# --- CONFIG ---\
-    \n:global hosts; # array {\"mac\"=\"hostname\";\"mac\"=\"hostname\"}\
-    \n:local ttl \"1h\"\
-    \n\
-    \n\
-    \n# --- function: replace \" \" character ---\
-    \n:local replace do={\
-    \n    :local result \"\"\
-    \n\
-    \n    :for i from=0 to=([:len \$value] - 1) do={\
-    \n        :local ch [:pick \$value \$i (\$i + 1)]\
-    \n        :if (\$ch = \" \") do={\
-    \n            :set result (\$result . \"_\")\
-    \n        } else={\
-    \n            :set result (\$result . \$ch)\
-    \n        }\
-    \n    }\
-    \n    :return \$result\
-    \n}\
-    \n\
-    \n# --- MAIN ---\
-    \n:local hostname (\$hosts->\"\$leaseActMAC\")\
-    \nif ([:len \$hostname] <= 0) do={\
-    \n  :set hostname [\$replace value=\$\"lease-hostname\"]\
-    \n}\
-    \n:if (\$leaseBound=1) do={\
-    \n  if ([:len \$hostname] > 0) do={\
-    \n    :log info (\"DHCP Bound: \$leaseActIP [\$leaseActMAC] (\" . \$hostname . \")\")\
-    \n    ip/dns/static/add address=\$leaseActIP name=(\$hostname . \".home.arpa\") type=A ttl=\$ttl comment=(\"DHCP Server:\$leaseServerName, MAC: \$leaseActMAC, \
-    Client: \" . \$hostname)\
-    \n  } else {\
-    \n    :log debug (\"DHCP Bound: \$leaseActIP [\$leaseActMAC] (unknown)\")\
-    \n  }\
-    \n} else {\
-    \n  :log info (\"DHCP UnBound: \$leaseActIP [\$leaseActMAC] (\" . \$hostname . \")\")\
-    \n  /ip/dns/static/remove [find address=\$leaseActIP]\
-    \n}" lease-time=1h name=local
-```
+![dhcp-server-script.png](../../src/images/dhcp-server-script.png)dhcp-server-script.png)
 
 ---
 
-## Global Variables
+### Global Variables
 
 A global variable hosts stores a mapping of **MAC addresses** to **custom static hostnames**.
 
@@ -164,20 +77,20 @@ A global variable hosts stores a mapping of **MAC addresses** to **custom static
 
 This mapping has priority over the `lease-hostname` provided by the DHCP client.
 
-### Global variables script
+#### Global variables script
 
 initGlobalVars script template here:
 
 ```mikrotik
 /system script
-  add ame=initGlobalVars \
-  comment="Initialese global variables" \
+  add name=initGlobalVars \
+  comment="Initialize global variables" \
   dont-require-permissions=no \
   policy=read,write,policy,test \
-  source="# Put global variable here"
+  source="# Put global variable initialization code here"
 ```
 
-## Initialization Scheduler
+##### Initialization Scheduler
 
 Add a scheduler task that loads global variables during system startup.
 
@@ -186,7 +99,7 @@ Add a scheduler task that loads global variables during system startup.
 	add name=loadGlobals \
 	start-time=startup \
 	policy=read,write,policy,test \
-	comment="Initialese global variables on startup" \
+	comment="Initialize global variables on startup" \
 	on-event="\
 	/system/script/run initGlobalVars;"
 ```
